@@ -28,7 +28,12 @@ diesel::table! {
     }
 }
 
-diesel::allow_tables_to_appear_in_same_query!(
-    absences,
-    employees,
-);
+diesel::table! {
+    users (id) {
+        id -> Int4,
+        username -> Nullable<Varchar>,
+        password -> Nullable<Varchar>,
+    }
+}
+
+diesel::allow_tables_to_appear_in_same_query!(absences, employees, users,);

@@ -46,3 +46,5 @@ pub fn init_routes(comfig: &mut web::ServiceConfig) {
     comfig.service(update);
     comfig.service(delete);
 }
+
+// base 64 string untuk image ke string--rust

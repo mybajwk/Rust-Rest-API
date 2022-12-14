@@ -13,7 +13,7 @@ mod db;
 mod employees;
 mod error_handler;
 mod schema;
-
+mod user;
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
     dotenv().ok();
@@ -24,6 +24,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .configure(employees::init_routes)
             .configure(absence::init_routes)
+            .configure(user::init_routes)
     });
 
     server = match listenfd.take_tcp_listener(0)? {

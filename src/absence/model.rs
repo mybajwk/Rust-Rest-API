@@ -1,6 +1,6 @@
-use crate::db;
 use crate::error_handler::CustomError;
 use crate::schema::absences;
+use crate::{db, TokenClaims};
 use chrono::{DateTime, Utc};
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -39,9 +39,11 @@ pub struct Absences {
 }
 
 impl Absences {
-    pub fn find_all() -> Result<Vec<Self>, CustomError> {
+    pub fn find_all(req_user: String) -> Result<Vec<Self>, CustomError> {
         let conn = db::connection()?;
-        let absences = absences::table.load::<Absences>(&conn)?;
+        let absences = absences::table
+            .filter(absences::employee_code.eq(req_user))
+            .load::<Absences>(&conn)?;
         Ok(absences)
     }
 
@@ -51,9 +53,10 @@ impl Absences {
         Ok(absence)
     }
 
-    pub fn create(absence: Absence) -> Result<Self, CustomError> {
+    pub fn create(absence: Absence, req_user: String) -> Result<Self, CustomError> {
         let conn = db::connection()?;
-        let absence = Absence::from(absence);
+        let mut absence = Absence::from(absence);
+        absence.employee_code = req_user;
         let absence = diesel::insert_into(absences::table)
             .values(absence)
             .get_result(&conn)?;

@@ -1,12 +1,14 @@
 use crate::absence::{Absence, Absences};
 use crate::error_handler::CustomError;
+use crate::TokenClaims;
+use actix_web::web::ReqData;
 use actix_web::{delete, get, post, put, web, HttpResponse};
 use chrono::Utc;
 use serde_json::json;
 
 #[get("/absences")]
-pub async fn find_all() -> Result<HttpResponse, CustomError> {
-    let employees = Absences::find_all()?;
+pub async fn find_all(req_user: Option<ReqData<TokenClaims>>) -> Result<HttpResponse, CustomError> {
+    let employees = Absences::find_all(req_user.unwrap().code.to_string())?;
     Ok(HttpResponse::Ok().json(employees))
 }
 
@@ -17,8 +19,12 @@ async fn find(id: web::Path<i32>) -> Result<HttpResponse, CustomError> {
 }
 
 #[post("/absences")]
-async fn create(employee: web::Json<Absence>) -> Result<HttpResponse, CustomError> {
-    let employee = Absences::create(employee.into_inner())?;
+async fn create(
+    employee: web::Json<Absence>,
+    req_user: Option<ReqData<TokenClaims>>,
+) -> Result<HttpResponse, CustomError> {
+    // println!("{}", req_user.unwrap().id);
+    let employee = Absences::create(employee.into_inner(), req_user.unwrap().code.to_string())?;
     Ok(HttpResponse::Ok().json(employee))
 }
 

@@ -1,9 +1,12 @@
-use crate::db;
 use crate::error_handler::CustomError;
 use crate::schema::users;
+use crate::{db, TokenClaims};
 use diesel::prelude::*;
+use hmac::{Hmac, Mac};
+use jwt::SignWithKey;
 use pwhash::{bcrypt, unix};
 use serde::{Deserialize, Serialize};
+use sha2::Sha256;
 #[derive(Serialize, Deserialize, AsChangeset, Insertable)]
 #[table_name = "users"]
 pub struct User {
@@ -33,7 +36,13 @@ impl Users {
             .get_result(&conn)?;
         Ok(user)
     }
-    pub fn basic_auth(user: User) -> Result<Self, CustomError> {
+    pub fn basic_auth(user: User) -> Result<String, CustomError> {
+        let jwt_secret: Hmac<Sha256> = Hmac::new_from_slice(
+            std::env::var("JWT_SECRET")
+                .expect("JWT_SECRET must be set!")
+                .as_bytes(),
+        )
+        .unwrap();
         let conn = db::connection()?;
         let user_db = users::table
             .filter(users::username.eq(user.username))
@@ -42,13 +51,14 @@ impl Users {
         let a = user_db.clone();
         let is_valid = unix::verify(user.password.unwrap(), &a.password.unwrap());
         if is_valid {
-            Ok(user_db)
+            let claims = TokenClaims {
+                id: user_db.id,
+                code: user_db.username.unwrap(),
+            };
+            let token_str = claims.sign_with_key(&jwt_secret).unwrap();
+            Ok(token_str)
         } else {
-            Ok(Self {
-                id: 1,
-                username: Some("notFound".to_string()),
-                password: Some("Wrong".to_string()),
-            })
+            Ok("Wrong pass".to_string())
         }
     }
 }

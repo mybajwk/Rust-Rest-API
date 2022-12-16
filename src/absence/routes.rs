@@ -6,12 +6,11 @@ use actix_web::{delete, get, post, put, web, HttpResponse};
 use chrono::Utc;
 use serde_json::json;
 
-#[get("/absences")]
-pub async fn find_all(req_user: Option<ReqData<TokenClaims>>) -> Result<HttpResponse, CustomError> {
-    let employees = Absences::find_all(req_user.unwrap().code.to_string())?;
-    Ok(HttpResponse::Ok().json(employees))
-}
-
+// #[get("/absences")]
+// pub async fn find_all(req_user: Option<ReqData<TokenClaims>>) -> Result<HttpResponse, CustomError> {
+//     let employees = Absences::find_all(req_user.unwrap().code.to_string())?;
+//     Ok(HttpResponse::Ok().json(employees))
+// }
 #[get("/absences/{id}")]
 async fn find(id: web::Path<i32>) -> Result<HttpResponse, CustomError> {
     let employee = Absences::find(id.into_inner())?;
@@ -23,11 +22,10 @@ async fn create(
     employee: web::Json<Absence>,
     req_user: Option<ReqData<TokenClaims>>,
 ) -> Result<HttpResponse, CustomError> {
-    // println!("{}", req_user.unwrap().id);
-    let employee = Absences::create(employee.into_inner(), req_user.unwrap().code.to_string())?;
+    println!("{}", req_user.clone().unwrap().exp);
+    let employee = Absences::create(employee.into_inner(), req_user.unwrap().sub.to_string())?;
     Ok(HttpResponse::Ok().json(employee))
 }
-
 #[put("/absences/{id}")]
 async fn update(
     id: web::Path<i32>,
@@ -46,7 +44,7 @@ async fn delete(id: web::Path<i32>) -> Result<HttpResponse, CustomError> {
 }
 
 pub fn init_routes(comfig: &mut web::ServiceConfig) {
-    comfig.service(find_all);
+    // comfig.service(find_all);
     comfig.service(find);
     comfig.service(create);
     comfig.service(update);

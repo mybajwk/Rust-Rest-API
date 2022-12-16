@@ -1,18 +1,24 @@
+use std::env;
+
 use crate::error_handler::CustomError;
 use crate::schema::users;
 use crate::{db, TokenClaims};
+use chrono::{Duration, Utc};
 use diesel::prelude::*;
 use hmac::{Hmac, Mac};
+use jsonwebtoken::{encode, EncodingKey, Header};
 use jwt::SignWithKey;
 use pwhash::{bcrypt, unix};
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
+
 #[derive(Serialize, Deserialize, AsChangeset, Insertable)]
 #[table_name = "users"]
 pub struct User {
     pub username: Option<String>,
     pub password: Option<String>,
 }
+
 #[derive(Serialize, Deserialize, Queryable, Insertable, Clone)]
 #[table_name = "users"]
 pub struct Users {
@@ -37,12 +43,8 @@ impl Users {
         Ok(user)
     }
     pub fn basic_auth(user: User) -> Result<String, CustomError> {
-        let jwt_secret: Hmac<Sha256> = Hmac::new_from_slice(
-            std::env::var("JWT_SECRET")
-                .expect("JWT_SECRET must be set!")
-                .as_bytes(),
-        )
-        .unwrap();
+        let jwt_secret = env::var("JWT_SECRET").unwrap();
+
         let conn = db::connection()?;
         let user_db = users::table
             .filter(users::username.eq(user.username))
@@ -51,11 +53,21 @@ impl Users {
         let a = user_db.clone();
         let is_valid = unix::verify(user.password.unwrap(), &a.password.unwrap());
         if is_valid {
+            let iat = Utc::now();
+            let exp = iat + Duration::days(1);
             let claims = TokenClaims {
-                id: user_db.id,
-                code: user_db.username.unwrap(),
+                // id: user_db.id,
+                sub: user_db.username.unwrap(),
+                iat: iat.timestamp_micros(),
+                exp: exp.timestamp_micros(),
             };
-            let token_str = claims.sign_with_key(&jwt_secret).unwrap();
+            // let token_str = claims.sign_with_key(&jwt_secret).unwrap();
+            let token_str = encode(
+                &Header::default(),
+                &claims,
+                &EncodingKey::from_secret(jwt_secret.as_bytes()),
+            )
+            .unwrap();
             Ok(token_str)
         } else {
             Ok("Wrong pass".to_string())

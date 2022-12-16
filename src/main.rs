@@ -16,8 +16,10 @@ use actix_web_httpauth::{
     },
     middleware::HttpAuthentication,
 };
+use chrono::Utc;
 use dotenv::dotenv;
 use hmac::{Hmac, Mac};
+use jsonwebtoken::{decode, DecodingKey, Validation};
 use jwt::VerifyWithKey;
 use listenfd::ListenFd;
 use serde::{Deserialize, Serialize};
@@ -29,12 +31,13 @@ mod db;
 mod employees;
 mod error_handler;
 mod schema;
-
 mod user;
-#[derive(Serialize, Deserialize, Clone)]
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TokenClaims {
-    id: i32,
-    code: String,
+    sub: String,
+    iat: i64,
+    exp: i64,
 }
 
 async fn validator(
@@ -42,17 +45,35 @@ async fn validator(
     credentials: BearerAuth,
 ) -> Result<ServiceRequest, (Error, ServiceRequest)> {
     let jwt_secret: String = std::env::var("JWT_SECRET").expect("JWT_SECRET must be set!");
-    let key: Hmac<Sha256> = Hmac::new_from_slice(jwt_secret.as_bytes()).unwrap();
+    // let key: Hmac<Sha256> = Hmac::new_from_slice(jwt_secret.as_bytes()).unwrap();
     let token_string = credentials.token();
 
-    let claims: Result<TokenClaims, &str> = token_string
-        .verify_with_key(&key)
-        .map_err(|_| "Invalid token");
-    println!("{}", token_string);
+    // let claims: Result<TokenClaims, &str> = token_string
+    //     .verify_with_key(&key)
+    //     .map_err(|_| "Invalid token");
+    // println!("{}", claims.clone().unwrap().id);
+    let claims = decode::<TokenClaims>(
+        &token_string,
+        &DecodingKey::from_secret(jwt_secret.as_bytes()),
+        &Validation::default(),
+    );
+    // .unwrap();
+    // println!("{:?}", claims);
     match claims {
         Ok(value) => {
-            req.extensions_mut().insert(value);
-            Ok(req)
+            if value.claims.exp > Utc::now().timestamp_micros() {
+                req.extensions_mut().insert(value.claims);
+                Ok(req)
+            } else {
+                let config = req
+                    .app_data::<bearer::Config>()
+                    .cloned()
+                    .unwrap_or_default()
+                    .scope("");
+
+                Err((AuthenticationError::from(config).into(), req))
+            }
+            // println!("{:?}", value.claims);
         }
         Err(_) => {
             let config = req
